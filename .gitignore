@@ -1,0 +1,32 @@
+# ── Dependencies ──
+node_modules/
+.pnpm-store/
+
+# ── Build Outputs ──
+.next/
+dist/
+out/
+
+# ── Environment Variables ──
+.env
+.env.development
+.env.production
+.env.local
+*.env
+
+# ── Docker ──
+# (docker-compose.yml is tracked, but not volumes)
+
+# ── OS ──
+.DS_Store
+Thumbs.db
+*.log
+
+# ── IDE ──
+.vscode/
+.idea/
+*.swp
+
+# ── Temp ──
+tmp/
+*.zip

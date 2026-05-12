@@ -1,0 +1,19 @@
+{
+  "name": "wgp-gonggam",
+  "version": "1.0.0",
+  "description": "wgp-gonggam Web Game Platform Monorepo",
+  "private": true,
+  "packageManager": "pnpm@10.32.0",
+  "scripts": {
+    "dev:api": "pnpm --filter @wgp/api dev",
+    "dev:web": "pnpm --filter @wgp/web dev",
+    "build:api": "pnpm --filter @wgp/api build",
+    "build:web": "pnpm --filter @wgp/web build",
+    "docker:up": "docker-compose up -d",
+    "docker:down": "docker-compose down",
+    "docker:logs": "docker-compose logs -f"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC"
+}

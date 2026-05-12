@@ -1,0 +1,118 @@
+# ============================================================
+# wgp-gonggam Docker Compose
+# Services: postgres, api-prod, api-dev, nginx
+# ============================================================
+
+networks:
+  wgp-network:
+    driver: bridge
+
+volumes:
+  postgres-data:
+    driver: local
+  api-tmp:
+    driver: local
+
+services:
+  # ── PostgreSQL (Single instance, two databases) ──────────
+  postgres:
+    image: postgres:16-alpine
+    container_name: wgp-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-wgp_secret_2024}
+      POSTGRES_DB: postgres
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./infra/postgres/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    ports:
+      - "5432:5432"
+    networks:
+      - wgp-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ── Production API (Port 3000) ───────────────────────────
+  api-prod:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+      target: production
+    container_name: wgp-api-prod
+    restart: unless-stopped
+    env_file:
+      - .env.production
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+    volumes:
+      - api-tmp:/tmp/wgp-extract
+    ports:
+      - "3000:3000"
+    networks:
+      - wgp-network
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:3000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+  # ── Development API (Port 3001) ──────────────────────────
+  api-dev:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+      target: development
+    container_name: wgp-api-dev
+    restart: unless-stopped
+    env_file:
+      - .env.development
+    environment:
+      NODE_ENV: development
+      PORT: 3001
+    volumes:
+      - ./apps/api/src:/app/apps/api/src:ro
+      - ./packages:/app/packages:ro
+      - api-tmp:/tmp/wgp-extract
+    ports:
+      - "3001:3001"
+    networks:
+      - wgp-network
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:3001/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+  # ── Nginx Reverse Proxy ──────────────────────────────────
+  nginx:
+    image: nginx:1.27-alpine
+    container_name: wgp-nginx
+    restart: unless-stopped
+    volumes:
+      - ./infra/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+    ports:
+      - "80:80"
+      - "8001:8001"
+    networks:
+      - wgp-network
+    depends_on:
+      - api-prod
+      - api-dev
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
