@@ -1,35 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import path from 'path';
-
-// Content-Type 매핑
-const CT_MAP: Record<string, string> = {
-  '.html':        'text/html; charset=utf-8',
-  '.js':          'application/javascript; charset=utf-8',
-  '.css':         'text/css; charset=utf-8',
-  '.json':        'application/json; charset=utf-8',
-  '.wasm':        'application/wasm',
-  '.data':        'application/octet-stream',
-  '.unityweb':    'application/octet-stream',
-  '.png':         'image/png',
-  '.jpg':         'image/jpeg',
-  '.jpeg':        'image/jpeg',
-  '.gif':         'image/gif',
-  '.webp':        'image/webp',
-  '.ico':         'image/x-icon',
-  '.svg':         'image/svg+xml',
-  '.mp3':         'audio/mpeg',
-  '.ogg':         'audio/ogg',
-  '.wav':         'audio/wav',
-  '.mp4':         'video/mp4',
-  '.webm':        'video/webm',
-  '.webmanifest': 'application/manifest+json',
-  '.manifest':    'application/manifest+json',
-};
-
-function getContentType(filePath: string): string {
-  const ext = path.extname(filePath).toLowerCase();
-  return CT_MAP[ext] || 'application/octet-stream';
-}
+import { getContentType } from '@/lib/contentType';
 
 // NEXT_PUBLIC_CDN_URL은 서버/클라이언트 모두 사용 가능
 const CDN_URL = process.env.NEXT_PUBLIC_CDN_URL ||
@@ -69,7 +40,11 @@ export async function GET(
         'Content-Disposition': 'inline',
         'Cache-Control': 'public, max-age=3600',
         'Access-Control-Allow-Origin': '*',
-        // Unity ServiceWorker 허용
+        // 교차 오리진 임베드 허용(COEP require-corp 부모 페이지에서 로드 가능하게).
+        // 운영에서는 NEXT_PUBLIC_GAME_ORIGIN(별도 오리진)이 게임을 직접 서빙하고,
+        // 이 프록시는 개발/폴백 경로다.
+        'Cross-Origin-Resource-Policy': 'cross-origin',
+        // Unity ServiceWorker / SharedArrayBuffer 허용
         'Cross-Origin-Embedder-Policy': 'require-corp',
         'Cross-Origin-Opener-Policy': 'same-origin',
       },

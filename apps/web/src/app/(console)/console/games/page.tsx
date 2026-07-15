@@ -2,21 +2,18 @@
 
 import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
+import { apiJson, authFetch } from "@/lib/auth";
 
 interface Game {
   id: string;
   title: string;
-  title_ko?: string;
-  category_name_ko?: string;
+  titleKo?: string;
+  categoryNameKo?: string;
   status: "pending" | "processing" | "active" | "inactive";
   plays: number;
   rating: number;
-  created_at: string;
+  createdAt: string;
 }
-
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
-
-
 
 export default function GamesManagePage() {
   const [games, setGames] = useState<Game[]>([]);
@@ -33,15 +30,9 @@ export default function GamesManagePage() {
         ...(statusFilter !== "all" && { status: statusFilter }),
         ...(search && { search }),
       });
-      const token = localStorage.getItem("wgp_access_token");
-      const res = await fetch(`${API_URL}/api/games?${params}`, {
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
-      });
-      const json = await res.json();
-      if (json.success) {
-        setGames(json.data?.items || []);
-        setTotal(json.data?.total || 0);
-      }
+      const data = await apiJson<{ items: Game[]; total: number }>(`/api/games?${params}`);
+      setGames(data?.items || []);
+      setTotal(data?.total || 0);
     } catch {
       console.error("Failed to fetch games");
     } finally {
@@ -54,14 +45,10 @@ export default function GamesManagePage() {
   }, [fetchGames]);
 
   const handleStatusChange = async (gameId: string, newStatus: string) => {
-    const token = localStorage.getItem("wgp_access_token");
     try {
-      const res = await fetch(`${API_URL}/api/games/${gameId}`, {
+      const res = await authFetch(`/api/games/${gameId}`, {
         method: "PATCH",
-        headers: {
-          "Content-Type": "application/json",
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ status: newStatus }),
       });
       if (res.ok) fetchGames();
@@ -72,12 +59,8 @@ export default function GamesManagePage() {
 
   const handleDelete = async (gameId: string, title: string) => {
     if (!confirm(`"${title}" 게임을 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다.`)) return;
-    const token = localStorage.getItem("wgp_access_token");
     try {
-      const res = await fetch(`${API_URL}/api/games/${gameId}`, {
-        method: "DELETE",
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
-      });
+      const res = await authFetch(`/api/games/${gameId}`, { method: "DELETE" });
       if (res.ok) fetchGames();
       else alert("삭제 실패");
     } catch {
@@ -178,15 +161,15 @@ export default function GamesManagePage() {
                   >
                     <td style={{ padding: "0.875rem 1rem" }}>
                       <div style={{ fontWeight: 600, fontSize: "0.875rem" }}>
-                        {game.title_ko || game.title}
+                        {game.titleKo || game.title}
                       </div>
-                      {game.title_ko && (
+                      {game.titleKo && (
                         <div style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}>{game.title}</div>
                       )}
                     </td>
                     <td style={{ padding: "0.875rem 1rem" }}>
                       <span style={{ fontSize: "0.8rem", color: "var(--text-secondary)" }}>
-                        {game.category_name_ko || "—"}
+                        {game.categoryNameKo || "—"}
                       </span>
                     </td>
                     <td style={{ padding: "0.875rem 1rem" }}>
@@ -209,7 +192,7 @@ export default function GamesManagePage() {
                       {game.rating > 0 ? `★ ${Number(game.rating).toFixed(1)}` : "—"}
                     </td>
                     <td style={{ padding: "0.875rem 1rem", fontSize: "0.8rem", color: "var(--text-muted)", whiteSpace: "nowrap" }}>
-                      {formatDate(game.created_at)}
+                      {formatDate(game.createdAt)}
                     </td>
                     <td style={{ padding: "0.875rem 1rem" }}>
                       <div style={{ display: "flex", gap: "0.5rem" }}>
@@ -220,7 +203,7 @@ export default function GamesManagePage() {
                         >▶</Link>
                         <button
                           className="btn btn-danger btn-sm"
-                          onClick={() => handleDelete(game.id, game.title_ko || game.title)}
+                          onClick={() => handleDelete(game.id, game.titleKo || game.title)}
                           id={`game-delete-${game.id}`}
                         >삭제</button>
                       </div>

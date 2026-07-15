@@ -3,8 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
+import { login as authLogin, logout as authLogout } from "@/lib/auth";
 
 export default function ConsoleLoginPage() {
   const router = useRouter();
@@ -19,34 +18,23 @@ export default function ConsoleLoginPage() {
     setLoading(true);
 
     try {
-      const res = await fetch(`${API_URL}/api/auth/login`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password }),
-      });
+      // access = 메모리, refresh = httpOnly 쿠키. localStorage 저장 없음.
+      const result = await authLogin(email, password);
 
-      const json = await res.json();
-
-      if (!json.success) {
-        setError(json.error || "로그인에 실패했습니다.");
+      if (!result.ok) {
+        setError(result.error || "로그인에 실패했습니다.");
         return;
       }
 
       // 역할 확인 (admin 또는 developer만 콘솔 접근 가능)
-      if (!["admin", "developer"].includes(json.data.role)) {
+      if (!["admin", "developer"].includes(result.user?.role ?? "")) {
+        // 권한 없는 세션은 즉시 폐기(쿠키/메모리 정리).
+        await authLogout();
         setError("콘솔 접근 권한이 없습니다. 개발자 계정으로 로그인하세요.");
         return;
       }
 
-      // 토큰 저장
-      localStorage.setItem("wgp_access_token", json.data.accessToken);
-      localStorage.setItem("wgp_refresh_token", json.data.refreshToken);
-      localStorage.setItem("wgp_role", json.data.role);
-      localStorage.setItem("wgp_username", json.data.username || "");
-
       router.push("/console");
-    } catch {
-      setError("서버에 연결할 수 없습니다. API 서버가 실행 중인지 확인하세요.");
     } finally {
       setLoading(false);
     }

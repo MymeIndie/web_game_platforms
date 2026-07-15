@@ -38,18 +38,27 @@ async function searchGames(search: string) {
   }
 }
 
-// Demo games fallback
+// 결정적 의사난수(0..1). 렌더마다 값이 흔들리지 않게(하이드레이션·캐시 안정).
+function seeded(n: number): number {
+  const x = Math.sin(n * 12.9898 + 78.233) * 43758.5453;
+  return x - Math.floor(x);
+}
+
+// Demo games fallback — 인덱스 기반 결정적 데이터(Math.random 미사용)
 function makeDemoGames(offset = 0, count = 6) {
-  return Array.from({ length: count }, (_, i) => ({
-    id: `demo-${offset + i}`,
-    title: `Game ${offset + i + 1}`,
-    titleKo: `게임 ${offset + i + 1}`,
-    thumbnailUrl: `https://picsum.photos/seed/wgp${offset + i}/640/360`,
-    previewVideoUrl: undefined,
-    categoryName: ["액션", "퍼즐", "RPG", "레이싱", "스포츠", "슈터"][i % 6],
-    plays: Math.floor(Math.random() * 200000),
-    rating: parseFloat((3.5 + Math.random() * 1.5).toFixed(1)),
-  }));
+  return Array.from({ length: count }, (_, i) => {
+    const idx = offset + i;
+    return {
+      id: `demo-${idx}`,
+      title: `Game ${idx + 1}`,
+      titleKo: `게임 ${idx + 1}`,
+      thumbnailUrl: `https://picsum.photos/seed/wgp${idx}/640/360`,
+      previewVideoUrl: undefined,
+      categoryName: ["액션", "퍼즐", "RPG", "레이싱", "스포츠", "슈터"][i % 6],
+      plays: Math.floor(seeded(idx + 1) * 200000),
+      rating: parseFloat((3.5 + seeded(idx + 101) * 1.5).toFixed(1)),
+    };
+  });
 }
 
 // ── Sub-components ──────────────────────────────────────
@@ -64,29 +73,10 @@ function SectionHeader({
   showMore?: boolean;
 }) {
   return (
-    <div
-      style={{
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "space-between",
-        marginBottom: "0.75rem",
-      }}
-    >
-      <h2
-        style={{
-          fontSize: "1rem",
-          fontWeight: 700,
-          color: "#f0f2ff",
-          letterSpacing: "-0.01em",
-        }}
-      >
-        {title}
-      </h2>
+    <div className="section-header">
+      <h2 className="section-header-title">{title}</h2>
       {showMore && href && (
-        <Link
-          href={href}
-          className="see-all-link"
-        >
+        <Link href={href} className="see-all-link">
           모두 보기
         </Link>
       )}
@@ -109,13 +99,7 @@ function GameRow({
   }[];
 }) {
   return (
-    <div
-      style={{
-        display: "grid",
-        gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))",
-        gap: "0.5rem",
-      }}
-    >
+    <div className="game-grid">
       {games.map((game) => (
         <GameCard key={game.id} {...game} />
       ))}
@@ -125,13 +109,7 @@ function GameRow({
 
 function SkeletonRow() {
   return (
-    <div
-      style={{
-        display: "grid",
-        gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))",
-        gap: "0.5rem",
-      }}
-    >
+    <div className="game-grid">
       {Array.from({ length: 8 }).map((_, i) => (
         <GameCardSkeleton key={i} />
       ))}
@@ -143,7 +121,7 @@ function SkeletonRow() {
 function FeaturedRow({ games }: { games: ReturnType<typeof makeDemoGames> }) {
   const [featured, ...rest] = games;
   return (
-    <div style={{ display: "grid", gridTemplateColumns: "2fr repeat(4, 1fr)", gap: "0.625rem" }}>
+    <div className="featured-grid">
       {/* Big featured card */}
       {featured && (
         <div style={{ gridRow: "span 1" }}>
@@ -226,7 +204,7 @@ export default async function HomePage({ searchParams }: Props) {
 
     return (
       <div style={{ width: "100%" }}>
-        <div style={{ display: "flex", gap: "0.5rem", marginBottom: "1rem" }}>
+        <div className="sort-bar">
           {[
             { value: "plays", label: "인기순" },
             { value: "newest", label: "최신순" },
@@ -250,7 +228,7 @@ export default async function HomePage({ searchParams }: Props) {
   }
 
   return (
-    <div style={{ width: "100%", display: "flex", flexDirection: "column", gap: "2rem" }}>
+    <div className="page-stack">
 
       {/* ── 인기 게임 ── */}
       <section id="popular-section">

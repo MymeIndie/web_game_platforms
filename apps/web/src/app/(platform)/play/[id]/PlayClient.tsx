@@ -3,21 +3,36 @@
 import Link from "next/link";
 import Image from "next/image";
 import { useState, useEffect, useRef } from "react";
+import { authFetch } from "@/lib/auth";
 
-const CDN_URL = process.env.NEXT_PUBLIC_CDN_URL || "";
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
+
+/**
+ * 게임 서빙 오리진(env 주도, HARDENING_SPEC 핵심 ①).
+ * 설정 시 iframe 이 앱과 **다른 오리진**에서 로드 → same-origin 정책으로 부모(앱) 토큰/DOM 접근 차단.
+ * 미설정 시(개발) 같은 오리진 /game-proxy 로 폴백. **운영에서는 반드시 앱과 다른 오리진을 지정한다.**
+ */
+const GAME_ORIGIN = (process.env.NEXT_PUBLIC_GAME_ORIGIN || "").replace(/\/$/, "");
+
+function buildGameSrc(id?: string, gamePath?: string): string | null {
+  if (!id || !gamePath) return null;
+  // 별도 오리진이 지정되면 교차 오리진 절대 URL, 아니면 같은 오리진 프록시(폴백).
+  return GAME_ORIGIN
+    ? `${GAME_ORIGIN}/games/${id}/index.html`
+    : `/game-proxy/${id}/index.html`;
+}
 
 interface Game {
   id?: string;
   title: string;
-  title_ko?: string;
+  titleKo?: string;
   description?: string;
-  description_ko?: string;
-  game_path?: string;
-  thumbnail_url?: string;
-  category_name?: string;
-  category_name_ko?: string;
-  category_slug?: string;
+  descriptionKo?: string;
+  gamePath?: string;
+  thumbnailUrl?: string;
+  categoryName?: string;
+  categoryNameKo?: string;
+  categorySlug?: string;
   plays?: number;
   rating?: number;
   tags?: string[];
@@ -46,7 +61,7 @@ function RelatedGames({ categorySlug, excludeId }: { categorySlug?: string; excl
           items
             .filter((g) => g.id !== excludeId)
             .slice(0, 16)
-            .map((g) => ({ id: g.id!, title: g.title_ko || g.title, thumbnailUrl: g.thumbnail_url || "", plays: g.plays }))
+            .map((g) => ({ id: g.id!, title: g.titleKo || g.title, thumbnailUrl: g.thumbnailUrl || "", plays: g.plays }))
         );
       })
       .catch(() => {});
@@ -99,6 +114,98 @@ function RelatedGames({ categorySlug, excludeId }: { categorySlug?: string; excl
   );
 }
 
+/* ── Rating Widget ── (POST /rate · GET /my-rating, Lane 2 백엔드) */
+function RatingWidget({ gameId, initialAvg }: { gameId?: string; initialAvg?: number }) {
+  const [avg, setAvg] = useState<number>(initialAvg ?? 0);
+  const [myRating, setMyRating] = useState<number | null>(null);
+  const [hover, setHover] = useState(0);
+  const [status, setStatus] = useState<"" | "saving" | "saved" | "auth" | "error">("");
+
+  // 초기 내 평점 조회(비로그인이면 401 → 조용히 무시)
+  useEffect(() => {
+    if (!gameId) return;
+    let active = true;
+    authFetch(`/api/games/${gameId}/my-rating`)
+      .then(async (res) => {
+        if (!active || res.status === 401 || !res.ok) return;
+        const json = await res.json().catch(() => null);
+        if (json?.success && typeof json.data?.rating === "number") {
+          setMyRating(json.data.rating);
+        }
+      })
+      .catch(() => {});
+    return () => {
+      active = false;
+    };
+  }, [gameId]);
+
+  const submit = async (value: number) => {
+    if (!gameId || status === "saving") return;
+    setStatus("saving");
+    try {
+      const res = await authFetch(`/api/games/${gameId}/rate`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ rating: value }),
+      });
+      if (res.status === 401) {
+        setStatus("auth");
+        return;
+      }
+      const json = await res.json().catch(() => null);
+      if (!res.ok || !json?.success) {
+        setStatus("error");
+        return;
+      }
+      setMyRating(value);
+      if (typeof json.data?.rating === "number") setAvg(json.data.rating);
+      setStatus("saved");
+    } catch {
+      setStatus("error");
+    }
+  };
+
+  const active = hover || myRating || 0;
+
+  return (
+    <div id="rating-widget" style={{ display: "flex", alignItems: "center", gap: "0.6rem", flexWrap: "wrap", marginBottom: "0.5rem" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: "0.15rem" }} onMouseLeave={() => setHover(0)}>
+        {[1, 2, 3, 4, 5].map((star) => (
+          <button
+            key={star}
+            type="button"
+            id={`rate-star-${star}`}
+            aria-label={`${star}점`}
+            onMouseEnter={() => setHover(star)}
+            onClick={() => submit(star)}
+            disabled={!gameId || status === "saving"}
+            style={{
+              background: "none",
+              border: "none",
+              cursor: gameId ? "pointer" : "default",
+              padding: "0.1rem",
+              fontSize: "1.15rem",
+              lineHeight: 1,
+              color: star <= active ? "#fbbf24" : "rgba(255,255,255,0.25)",
+              transition: "color 0.1s",
+            }}
+          >
+            ★
+          </button>
+        ))}
+      </div>
+      {avg > 0 && (
+        <span style={{ fontSize: "0.75rem", color: "rgba(255,255,255,0.45)" }}>
+          평균 <span style={{ color: "#fbbf24" }}>{Number(avg).toFixed(1)}</span>
+        </span>
+      )}
+      {status === "saved" && <span style={{ fontSize: "0.72rem", color: "#4ade80" }}>평점이 저장되었습니다</span>}
+      {status === "auth" && <span style={{ fontSize: "0.72rem", color: "rgba(255,255,255,0.5)" }}>평점을 남기려면 로그인이 필요합니다</span>}
+      {status === "error" && <span style={{ fontSize: "0.72rem", color: "#f87171" }}>저장에 실패했습니다</span>}
+    </div>
+  );
+}
+
 /* ── Main ── */
 export default function PlayClient({ game }: { game: Game | null }) {
   const [liked, setLiked] = useState(false);
@@ -106,11 +213,9 @@ export default function PlayClient({ game }: { game: Game | null }) {
   const [copied, setCopied] = useState(false);
   const wrapRef = useRef<HTMLDivElement>(null);
 
-  // /game-proxy 경로: Next.js 내장 라우트로 서빙 (same-origin, 크로스 오리진 없음)
-  const gameSrc = game?.id && game?.game_path
-    ? `/game-proxy/${game.id}/index.html`
-    : null;
-  const gameTitle = game ? game.title_ko || game.title : "데모 게임";
+  // 게임 iframe src — 별도 오리진(교차 오리진 격리) 또는 개발용 same-origin 프록시 폴백.
+  const gameSrc = buildGameSrc(game?.id, game?.gamePath);
+  const gameTitle = game ? game.titleKo || game.title : "데모 게임";
 
   const handleFullscreen = () => {
     if (!document.fullscreenElement) {
@@ -290,10 +395,10 @@ export default function PlayClient({ game }: { game: Game | null }) {
         }}>
           <div style={{ display: "flex", alignItems: "center", gap: "0.375rem", fontSize: "0.72rem", color: "rgba(255,255,255,0.35)", marginBottom: "0.45rem" }}>
             <Link href="/" style={{ color: "inherit", textDecoration: "none" }}>게임</Link>
-            {game?.category_name_ko && (
+            {game?.categoryNameKo && (
               <>
                 <span>›</span>
-                <Link href={`/category/${game.category_slug || ""}`} style={{ color: "inherit", textDecoration: "none" }}>{game.category_name_ko}</Link>
+                <Link href={`/category/${game.categorySlug || ""}`} style={{ color: "inherit", textDecoration: "none" }}>{game.categoryNameKo}</Link>
               </>
             )}
             <span>›</span>
@@ -302,15 +407,17 @@ export default function PlayClient({ game }: { game: Game | null }) {
 
           <h1 style={{ fontSize: "1.05rem", fontWeight: 800, color: "#f0f2ff", marginBottom: "0.45rem" }}>{gameTitle}</h1>
 
+          {game?.id && <RatingWidget gameId={game.id} initialAvg={game.rating} />}
+
           <div style={{ display: "flex", gap: "1.25rem", fontSize: "0.75rem", color: "rgba(255,255,255,0.4)", marginBottom: "0.5rem", flexWrap: "wrap" }}>
-            {game?.category_name_ko && <span>장르: <span style={{ color: "#c7d2fe" }}>{game.category_name_ko}</span></span>}
+            {game?.categoryNameKo && <span>장르: <span style={{ color: "#c7d2fe" }}>{game.categoryNameKo}</span></span>}
             {(game?.rating ?? 0) > 0 && <span>평점: <span style={{ color: "#fbbf24" }}>★ {Number(game?.rating).toFixed(1)}</span></span>}
             {(game?.plays ?? 0) > 0 && <span>플레이: <span style={{ color: "#f0f2ff" }}>{game?.plays?.toLocaleString()}</span></span>}
           </div>
 
-          {(game?.description_ko || game?.description) && (
+          {(game?.descriptionKo || game?.description) && (
             <p style={{ fontSize: "0.8rem", color: "rgba(255,255,255,0.5)", lineHeight: 1.7, marginBottom: "0.5rem" }}>
-              {game?.description_ko || game?.description}
+              {game?.descriptionKo || game?.description}
             </p>
           )}
 
@@ -343,7 +450,7 @@ export default function PlayClient({ game }: { game: Game | null }) {
         }}>
           다음 게임 플레이
         </p>
-        <RelatedGames categorySlug={game?.category_slug} excludeId={game?.id} />
+        <RelatedGames categorySlug={game?.categorySlug} excludeId={game?.id} />
       </aside>
     </div>
   );

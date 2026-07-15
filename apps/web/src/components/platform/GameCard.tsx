@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useCallback } from "react";
+import { useRef, useState, useCallback } from "react";
 import Link from "next/link";
 import Image from "next/image";
 
@@ -25,23 +25,21 @@ export function GameCard({
   plays = 0,
   rating = 0,
 }: GameCardProps) {
-  const [isHovered, setIsHovered] = useState(false);
+  // videoError 만 상태로 유지(깨진 영상 숨김). hover 스타일링은 전부 CSS :hover.
   const [videoError, setVideoError] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
   const hoverTimeout = useRef<ReturnType<typeof setTimeout>>(undefined);
 
+  // hover 시 미리보기 영상 재생/정지(스타일 변경 아님 — 재생 제어만 JS)
   const handleMouseEnter = useCallback(() => {
+    if (!previewVideoUrl || videoError) return;
     hoverTimeout.current = setTimeout(() => {
-      setIsHovered(true);
-      if (videoRef.current && previewVideoUrl && !videoError) {
-        videoRef.current.play().catch(() => setVideoError(true));
-      }
+      videoRef.current?.play().catch(() => setVideoError(true));
     }, 200);
   }, [previewVideoUrl, videoError]);
 
   const handleMouseLeave = useCallback(() => {
     clearTimeout(hoverTimeout.current);
-    setIsHovered(false);
     if (videoRef.current) {
       videoRef.current.pause();
       videoRef.current.currentTime = 0;
@@ -67,15 +65,11 @@ export function GameCard({
           alt={titleKo || title}
           fill
           sizes="(max-width: 640px) 50vw, (max-width: 1280px) 25vw, 20vw"
-          style={{
-            objectFit: "cover",
-            transition: "opacity 0.3s ease",
-            opacity: isHovered && previewVideoUrl && !videoError ? 0 : 1,
-          }}
+          className="game-card-media"
           priority={false}
         />
 
-        {/* Preview Video */}
+        {/* Preview Video — CSS 로 hover 시 페이드인(썸네일 위 오버레이) */}
         {previewVideoUrl && !videoError && (
           <video
             ref={videoRef}
@@ -84,75 +78,40 @@ export function GameCard({
             loop
             playsInline
             onError={() => setVideoError(true)}
-            style={{
-              position: "absolute",
-              inset: 0,
-              width: "100%",
-              height: "100%",
-              objectFit: "cover",
-              opacity: isHovered ? 1 : 0,
-              transition: "opacity 0.3s ease",
-            }}
+            className="game-card-video"
           />
         )}
 
         {/* Hover Overlay Info */}
         <div className="game-card-info">
-          <p style={{
-            fontWeight: 700,
-            fontSize: "0.85rem",
-            color: "white",
-            lineHeight: 1.3,
-            marginBottom: "0.25rem",
-          }}>
-            {titleKo || title}
-          </p>
-          <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+          <p className="game-card-title">{titleKo || title}</p>
+          <div className="game-card-meta">
             {categoryName && (
-              <span style={{ fontSize: "0.7rem", color: "rgba(255,255,255,0.65)" }}>
-                {categoryName}
-              </span>
+              <span className="game-card-meta-item">{categoryName}</span>
             )}
             {plays > 0 && (
               <>
-                <span style={{ color: "rgba(255,255,255,0.3)", fontSize: "0.65rem" }}>·</span>
-                <span style={{ fontSize: "0.7rem", color: "rgba(255,255,255,0.65)" }}>
+                <span className="game-card-meta-dot">·</span>
+                <span className="game-card-meta-item">
                   {formatPlays(plays)} 플레이
                 </span>
               </>
             )}
             {rating > 0 && (
               <>
-                <span style={{ color: "rgba(255,255,255,0.3)", fontSize: "0.65rem" }}>·</span>
-                <span style={{ fontSize: "0.7rem", color: "#fbbf24" }}>
-                  ★ {rating.toFixed(1)}
-                </span>
+                <span className="game-card-meta-dot">·</span>
+                <span className="game-card-meta-rating">★ {rating.toFixed(1)}</span>
               </>
             )}
           </div>
         </div>
 
-        {/* Play Icon on Hover */}
-        {isHovered && (
-          <div style={{
-            position: "absolute",
-            top: "50%", left: "50%",
-            transform: "translate(-50%, -50%)",
-            width: 48, height: 48,
-            background: "rgba(108, 99, 255, 0.9)",
-            borderRadius: "50%",
-            display: "flex", alignItems: "center", justifyContent: "center",
-            backdropFilter: "blur(4px)",
-            boxShadow: "0 0 24px rgba(108, 99, 255, 0.5)",
-            animation: "fadeInScale 0.2s ease",
-          }}>
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="white">
-              <path d="M8 5v14l11-7z" />
-            </svg>
-          </div>
-        )}
-
-
+        {/* Play Icon — 순수 CSS :hover */}
+        <div className="game-card-play">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="white">
+            <path d="M8 5v14l11-7z" />
+          </svg>
+        </div>
       </article>
     </Link>
   );

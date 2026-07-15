@@ -25,11 +25,11 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const game = await getGame(id);
   if (!game) return { title: "게임을 찾을 수 없습니다" };
   return {
-    title: game.title_ko || game.title,
-    description: game.description_ko || game.description,
+    title: game.titleKo || game.title,
+    description: game.descriptionKo || game.description,
     openGraph: {
-      title: game.title_ko || game.title,
-      images: [game.thumbnail_url].filter(Boolean),
+      title: game.titleKo || game.title,
+      images: [game.thumbnailUrl].filter(Boolean),
     },
   };
 }

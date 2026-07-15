@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
+import { ensureAuth, getCurrentUser, logout as authLogout } from "@/lib/auth";
 
 const navItems = [
   { href: "/console",        label: "대시보드",  icon: "📊" },
@@ -14,49 +15,66 @@ export default function ConsoleLayout({ children }: { children: React.ReactNode 
   const pathname = usePathname();
   const router = useRouter();
   const [username, setUsername] = useState("");
+  // 인증 확인 전에는 보호 콘텐츠를 그리지 않는다(플래시 방지).
+  const [authState, setAuthState] = useState<"checking" | "authed">("checking");
 
   // 로그인 페이지는 레이아웃 없이 그대로 렌더
   const isLoginPage = pathname === "/console/login";
 
   useEffect(() => {
     if (isLoginPage) return;
+    let active = true;
 
-    const token = localStorage.getItem("wgp_access_token");
-    if (!token) {
-      router.replace("/console/login");
+    // 이미 이번 세션에서 검증된 사용자(메모리)면 재검증 생략 → 페이지 이동 시 스피너 플래시 방지.
+    const cached = getCurrentUser();
+    if (cached && ["admin", "developer"].includes(cached.role)) {
+      setUsername(cached.username || "관리자");
+      setAuthState("authed");
       return;
     }
-    setUsername(localStorage.getItem("wgp_username") || "관리자");
-  }, [isLoginPage, router]);
+
+    setAuthState("checking");
+
+    // 메모리 access 토큰(없으면 refresh 쿠키로 재발급) → /me 로 세션 검증.
+    ensureAuth().then((user) => {
+      if (!active) return;
+      if (!user || !["admin", "developer"].includes(user.role)) {
+        router.replace("/console/login");
+        return;
+      }
+      setUsername(user.username || "관리자");
+      setAuthState("authed");
+    });
+
+    return () => {
+      active = false;
+    };
+  }, [isLoginPage, pathname, router]);
 
   const handleLogout = async () => {
-    const token = localStorage.getItem("wgp_access_token");
-    const refreshToken = localStorage.getItem("wgp_refresh_token");
-    if (token && refreshToken) {
-      const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
-      try {
-        await fetch(`${API_URL}/api/auth/logout`, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify({ refreshToken }),
-        });
-      } catch (err) {
-        console.error("Logout failed:", err);
-      }
-    }
-    localStorage.removeItem("wgp_access_token");
-    localStorage.removeItem("wgp_refresh_token");
-    localStorage.removeItem("wgp_role");
-    localStorage.removeItem("wgp_username");
+    // 쿠키(refresh) 자동 전송으로 서버 세션 폐기 + 메모리 정리.
+    await authLogout();
     router.replace("/console/login");
   };
 
   // 로그인 페이지는 레이아웃 없이 children만 렌더
   if (isLoginPage) {
     return <>{children}</>;
+  }
+
+  // 세션 확인 중에는 스피너만 노출(미인증 콘텐츠 플래시 차단)
+  if (authState === "checking") {
+    return (
+      <div style={{
+        minHeight: "100vh",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        background: "var(--bg-primary)",
+      }}>
+        <div className="spinner" />
+      </div>
+    );
   }
 
   return (

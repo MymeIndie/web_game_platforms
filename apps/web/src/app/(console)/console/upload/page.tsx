@@ -1,7 +1,9 @@
 "use client";
 
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef, useCallback, useEffect } from "react";
 import Link from "next/link";
+import { apiJson } from "@/lib/auth";
+import { fetchCategories, type Category } from "@/lib/categories";
 
 const CHUNK_SIZE = 5 * 1024 * 1024; // 5MB per chunk
 
@@ -24,45 +26,15 @@ interface GameFormData {
   height: string;
 }
 
-const CATEGORIES = [
-  { id: 1,  name: "액션 (Action)" },
-  { id: 2,  name: "어드벤처 (Adventure)" },
-  { id: 3,  name: "퍼즐 (Puzzle)" },
-  { id: 4,  name: "레이싱 (Racing)" },
-  { id: 5,  name: "스포츠 (Sports)" },
-  { id: 6,  name: "슈터 (Shooter)" },
-  { id: 7,  name: "RPG" },
-  { id: 8,  name: "전략 (Strategy)" },
-  { id: 9,  name: "시뮬레이션 (Simulation)" },
-  { id: 10, name: "방치형 (Idle)" },
-  { id: 11, name: "캐주얼 (Casual)" },
-  { id: 12, name: "멀티플레이 (Multiplayer)" },
-];
-
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
-
-async function apiRequest(path: string, options: RequestInit = {}) {
-  const token = localStorage.getItem("wgp_access_token");
-  const res = await fetch(`${API_URL}${path}`, {
-    ...options,
-    headers: {
-      "Content-Type": "application/json",
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      ...(options.headers || {}),
-    },
-  });
-  const json = await res.json();
-  if (!json.success) throw new Error(json.error || "API error");
-  return json.data;
-}
-
+// 우리 API 호출은 lib/auth 의 apiJson(메모리 Bearer + 401 재발급 인터셉트)으로 일원화.
+// 프리사인 URL 로의 직접 PUT(COS/R2)만 raw fetch 유지(인증/쿠키 불필요).
 async function uploadFileMultipart(
   file: File,
   gameId: string,
   onProgress: (percent: number) => void
 ): Promise<string> {
   // 1. Initiate multipart upload
-  const { uploadId, key } = await apiRequest("/api/upload/initiate", {
+  const { uploadId, key } = await apiJson<{ uploadId: string; key: string }>("/api/upload/initiate", {
     method: "POST",
     body: JSON.stringify({
       fileName: file.name,
@@ -83,7 +55,7 @@ async function uploadFileMultipart(
     const partNumber = i + 1;
 
     // Get presigned URL for this chunk
-    const { presignedUrl } = await apiRequest(
+    const { presignedUrl } = await apiJson<{ presignedUrl: string }>(
       `/api/upload/part-url?key=${encodeURIComponent(key)}&uploadId=${uploadId}&partNumber=${partNumber}`
     );
 
@@ -102,7 +74,7 @@ async function uploadFileMultipart(
   }
 
   // 3. Complete multipart upload
-  await apiRequest("/api/upload/complete", {
+  await apiJson("/api/upload/complete", {
     method: "POST",
     body: JSON.stringify({ key, uploadId, parts, gameId }),
   });
@@ -125,6 +97,17 @@ export default function UploadPage() {
     stage: "idle", progress: 0, message: "",
   });
   const [isDragOver, setIsDragOver] = useState(false);
+  const [categories, setCategories] = useState<Category[]>([]);
+
+  useEffect(() => {
+    let active = true;
+    fetchCategories().then((cats) => {
+      if (active) setCategories(cats);
+    });
+    return () => {
+      active = false;
+    };
+  }, []);
 
   const handleFormChange = useCallback((
     e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>
@@ -161,7 +144,7 @@ export default function UploadPage() {
     try {
       // Step 1: Create game record
       setUploadState({ stage: "creating", progress: 0, message: "게임 정보를 저장하는 중..." });
-      const game = await apiRequest("/api/games", {
+      const game = await apiJson<{ id: string }>("/api/games", {
         method: "POST",
         body: JSON.stringify({
           title: form.title,
@@ -193,7 +176,7 @@ export default function UploadPage() {
       const pollStatus = async () => {
         attempts++;
         try {
-          const status = await apiRequest(`/api/games/${game.id}/status`);
+          const status = await apiJson<{ status: string }>(`/api/games/${game.id}/status`);
           if (status.status === "active") {
             setUploadState({
               stage: "done", progress: 100,
@@ -357,8 +340,10 @@ export default function UploadPage() {
                     className="select"
                     value={form.categoryId} onChange={handleFormChange}
                   >
-                    {CATEGORIES.map(cat => (
-                      <option key={cat.id} value={cat.id}>{cat.name}</option>
+                    {categories.map(cat => (
+                      <option key={cat.id} value={cat.id}>
+                        {cat.nameKo === cat.name ? cat.name : `${cat.nameKo} (${cat.name})`}
+                      </option>
                     ))}
                   </select>
                 </div>

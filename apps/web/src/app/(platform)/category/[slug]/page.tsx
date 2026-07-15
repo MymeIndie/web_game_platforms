@@ -2,30 +2,16 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { GameCard, GameCardSkeleton } from "@/components/platform/GameCard";
 import { Suspense } from "react";
+import { fetchCategories, findCategory, categoryEmoji } from "@/lib/categories";
 
 type Props = {
   params: Promise<{ slug: string }>;
   searchParams: Promise<{ sort?: string; page?: string }>;
 };
 
-const CATEGORY_NAMES: Record<string, { name: string; nameKo: string; icon: string }> = {
-  action:     { name: "Action",      nameKo: "액션",       icon: "⚡" },
-  adventure:  { name: "Adventure",   nameKo: "어드벤처",   icon: "🧭" },
-  puzzle:     { name: "Puzzle",      nameKo: "퍼즐",       icon: "🧩" },
-  racing:     { name: "Racing",      nameKo: "레이싱",     icon: "🏁" },
-  sports:     { name: "Sports",      nameKo: "스포츠",     icon: "🏆" },
-  shooter:    { name: "Shooter",     nameKo: "슈터",       icon: "🎯" },
-  rpg:        { name: "RPG",         nameKo: "RPG",        icon: "⚔️" },
-  strategy:   { name: "Strategy",    nameKo: "전략",       icon: "🧠" },
-  simulation: { name: "Simulation",  nameKo: "시뮬레이션", icon: "⚙️" },
-  idle:       { name: "Idle",        nameKo: "방치형",     icon: "⏰" },
-  casual:     { name: "Casual",      nameKo: "캐주얼",     icon: "😊" },
-  multiplayer:{ name: "Multiplayer", nameKo: "멀티플레이", icon: "👥" },
-};
-
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { slug } = await params;
-  const cat = CATEGORY_NAMES[slug];
+  const cat = findCategory(await fetchCategories(), slug);
   if (!cat) return { title: "카테고리" };
   return {
     title: `${cat.nameKo} 게임 — WGP 공감`,
@@ -54,14 +40,20 @@ async function getGamesByCategory(slug: string, sort: string) {
   }
 }
 
-// Demo data for when API is not connected
+// 결정적 의사난수(0..1) — Math.random 미사용(하이드레이션·캐시 안정)
+function seeded(n: number): number {
+  const x = Math.sin(n * 12.9898 + 78.233) * 43758.5453;
+  return x - Math.floor(x);
+}
+
+// Demo data for when API is not connected — 인덱스 기반 결정적 값
 const DEMO_GAMES = Array.from({ length: 8 }, (_, i) => ({
   id: `demo-cat-${i}`,
   title: `Category Game ${i + 1}`,
   titleKo: `카테고리 게임 ${i + 1}`,
   thumbnailUrl: `https://picsum.photos/seed/cat${i}/640/360`,
-  plays: Math.floor(Math.random() * 50000),
-  rating: 3.5 + Math.random() * 1.5,
+  plays: Math.floor(seeded(i + 1) * 50000),
+  rating: parseFloat((3.5 + seeded(i + 51) * 1.5).toFixed(1)),
 }));
 
 async function CategoryGames({ slug, sort }: { slug: string; sort: string }) {
@@ -70,19 +62,13 @@ async function CategoryGames({ slug, sort }: { slug: string; sort: string }) {
 
   return (
     <>
-      <p style={{ color: "var(--text-muted)", fontSize: "0.875rem", marginBottom: "1.25rem" }}>
-        총 {total || games.length}개의 게임
-      </p>
-      <div style={{
-        display: "grid",
-        gridTemplateColumns: "repeat(4, 1fr)",
-        gap: "0.875rem",
-      }} id="category-game-grid">
+      <p className="category-count">총 {total || games.length}개의 게임</p>
+      <div className="game-grid-fixed" id="category-game-grid">
         {games.map((game: {
           id: string; title: string; title_ko?: string; titleKo?: string;
           thumbnail_url?: string; thumbnailUrl?: string;
           preview_video_url?: string; previewVideoUrl?: string;
-          category_name_ko?: string; plays?: number; rating?: number;
+          categoryNameKo?: string; plays?: number; rating?: number;
         }) => (
           <GameCard
             key={game.id}
@@ -91,7 +77,7 @@ async function CategoryGames({ slug, sort }: { slug: string; sort: string }) {
             titleKo={game.title_ko || game.titleKo}
             thumbnailUrl={game.thumbnail_url || game.thumbnailUrl || ""}
             previewVideoUrl={game.preview_video_url || game.previewVideoUrl}
-            categoryName={game.category_name_ko}
+            categoryName={game.categoryNameKo}
             plays={game.plays}
             rating={game.rating}
           />
@@ -105,7 +91,7 @@ function CategorySkeletons() {
   return (
     <>
       <div style={{ height: 20, width: 120, marginBottom: "1.25rem" }} className="skeleton" />
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "0.875rem" }}>
+      <div className="game-grid-fixed">
         {Array.from({ length: 8 }).map((_, i) => <GameCardSkeleton key={i} />)}
       </div>
     </>
@@ -115,13 +101,13 @@ function CategorySkeletons() {
 export default async function CategoryPage({ params, searchParams }: Props) {
   const { slug } = await params;
   const { sort = "plays" } = await searchParams;
-  const cat = CATEGORY_NAMES[slug];
+  const cat = findCategory(await fetchCategories(), slug);
 
   if (!cat) {
     return (
-      <div style={{ textAlign: "center", padding: "4rem 2rem" }}>
-        <div style={{ fontSize: "3rem", marginBottom: "1rem" }}>🔍</div>
-        <h1 style={{ fontSize: "1.5rem", fontWeight: 700, marginBottom: "0.5rem" }}>카테고리를 찾을 수 없습니다</h1>
+      <div className="empty-state">
+        <div className="empty-state-icon">🔍</div>
+        <h1 className="empty-state-title">카테고리를 찾을 수 없습니다</h1>
         <Link href="/" className="btn btn-primary" style={{ marginTop: "1rem" }}>홈으로</Link>
       </div>
     );
@@ -136,26 +122,18 @@ export default async function CategoryPage({ params, searchParams }: Props) {
   return (
     <div style={{ maxWidth: 1600 }}>
       {/* Category Header */}
-      <div style={{ marginBottom: "1.75rem", display: "flex", alignItems: "center", gap: "1rem" }}>
-        <div style={{
-          width: 56, height: 56,
-          background: "linear-gradient(135deg, var(--accent-primary), var(--accent-secondary))",
-          borderRadius: 14,
-          display: "flex", alignItems: "center", justifyContent: "center",
-          fontSize: "1.75rem",
-        }}>
-          {cat.icon}
-        </div>
+      <div className="category-hero">
+        <div className="category-hero-icon">{categoryEmoji(cat.slug)}</div>
         <div>
-          <h1 style={{ fontSize: "1.75rem", fontWeight: 800, lineHeight: 1.2 }}>
-            {cat.nameKo} <span style={{ color: "var(--text-muted)", fontSize: "1rem", fontWeight: 400 }}>게임</span>
+          <h1 className="category-hero-title">
+            {cat.nameKo} <span>게임</span>
           </h1>
-          <p style={{ color: "var(--text-muted)", fontSize: "0.875rem" }}>{cat.name} Games</p>
+          <p className="category-hero-sub">{cat.name} Games</p>
         </div>
       </div>
 
       {/* Sort Controls */}
-      <div style={{ display: "flex", gap: "0.5rem", marginBottom: "1.5rem" }}>
+      <div className="sort-bar">
         {sortOptions.map((opt) => (
           <a
             key={opt.value}
