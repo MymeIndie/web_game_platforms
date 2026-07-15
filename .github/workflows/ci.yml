@@ -7,12 +7,12 @@ on:
 
 jobs:
   api:
-    name: API — typecheck + test
+    name: API — typecheck + unit
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: pnpm/action-setup@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v6
         with:
           node-version: 22
           cache: pnpm
@@ -22,13 +22,55 @@ jobs:
       - name: Unit tests (@wgp/api)
         run: pnpm --filter @wgp/api test
 
+  api-integration:
+    name: API — integration (Postgres)
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: wgp_test
+        ports:
+          - 5432:5432
+        # 서비스 컨테이너가 준비될 때까지 대기(health check)
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      # node-pg-migrate 는 DATABASE_URL 로 접속. 앱/테스트는 DB_* 로 접속(shared/env).
+      DATABASE_URL: postgres://postgres:postgres@localhost:5432/wgp_test
+      DB_HOST: localhost
+      DB_PORT: 5432
+      DB_NAME: wgp_test
+      DB_USER: postgres
+      DB_PASSWORD: postgres
+      JWT_SECRET: ci-integration-test-secret
+      NODE_ENV: test
+      RUN_INT_TESTS: '1'
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Run migrations (node-pg-migrate up)
+        run: pnpm --filter @wgp/api migrate up
+      - name: Integration tests (@wgp/api)
+        run: pnpm --filter @wgp/api test:int
+
   web:
     name: Web — build
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: pnpm/action-setup@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v6
         with:
           node-version: 22
           cache: pnpm

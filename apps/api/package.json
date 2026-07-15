@@ -12,6 +12,7 @@
     "lint": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
+    "test:int": "vitest run --config vitest.int.config.ts",
     "migrate": "node-pg-migrate -m migrations",
     "migrate:down": "node-pg-migrate down -m migrations"
   },
