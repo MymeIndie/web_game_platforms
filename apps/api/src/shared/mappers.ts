@@ -12,14 +12,15 @@ export function camelToSnake(str: string): string {
   return str.replace(/[A-Z]/g, (c) => `_${c.toLowerCase()}`);
 }
 
-/** DB row(snake) → DTO(camel). 얕은 변환. 값은 그대로. */
-export function rowToDto<T = Record<string, unknown>>(row: Record<string, unknown>): T {
+/** DB row(snake) → DTO(camel). 얕은 변환. 값은 그대로.
+ *  입력은 object 로 완화 — 타입된 Row 인터페이스(인덱스시그니처 없음)도 받도록. */
+export function rowToDto<T = Record<string, unknown>>(row: object): T {
   const out: Record<string, unknown> = {};
   for (const [k, v] of Object.entries(row)) out[snakeToCamel(k)] = v;
   return out as T;
 }
 
-export function rowsToDto<T = Record<string, unknown>>(rows: Record<string, unknown>[]): T[] {
+export function rowsToDto<T = Record<string, unknown>>(rows: readonly object[]): T[] {
   return rows.map((r) => rowToDto<T>(r));
 }
 
