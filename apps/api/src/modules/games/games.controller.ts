@@ -44,11 +44,11 @@ export class GamesController {
       requireOwnershipOrAdmin(loadOwnerId),
       asyncHandler(this.update)
     );
+    // 삭제는 admin 전용(운영 정책). 소유 developer도 삭제 불가.
     this.router.delete(
       '/:id',
       authenticateToken,
-      requireRole(['admin', 'developer']),
-      requireOwnershipOrAdmin(loadOwnerId),
+      requireRole(['admin']),
       asyncHandler(this.remove)
     );
 

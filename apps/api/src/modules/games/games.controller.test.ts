@@ -101,19 +101,19 @@ describe('games IDOR — requireOwnershipOrAdmin', () => {
     expect(ctx.updateGame).not.toHaveBeenCalled();
   });
 
-  it('DELETE /:id — 남의 게임 삭제 시 403', async () => {
+  it('DELETE /:id — developer 는 소유자여도 삭제 불가 403 [admin 전용 정책]', async () => {
     const res = await request(app)
       .delete(`/api/games/${GAME_ID}`)
-      .set('Authorization', `Bearer ${tokenFor(OTHER_ID, 'developer')}`);
+      .set('Authorization', `Bearer ${tokenFor(OWNER_ID, 'developer')}`);
 
     expect(res.status).toBe(403);
     expect(ctx.deleteGame).not.toHaveBeenCalled();
   });
 
-  it('DELETE /:id — 소유자 developer 는 자기 게임 삭제 가능(200)', async () => {
+  it('DELETE /:id — admin 은 삭제 가능(200)', async () => {
     const res = await request(app)
       .delete(`/api/games/${GAME_ID}`)
-      .set('Authorization', `Bearer ${tokenFor(OWNER_ID, 'developer')}`);
+      .set('Authorization', `Bearer ${tokenFor('admin-9', 'admin')}`);
 
     expect(res.status).toBe(200);
     expect(ctx.deleteGame).toHaveBeenCalledWith(GAME_ID);
