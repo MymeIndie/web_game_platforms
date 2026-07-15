@@ -1,11 +1,13 @@
 /**
- * [Phase 0 스켈레톤 — 위임 스텁]
- * Lane 2(games) 세션이 controller/service/repository 로 교체 + IDOR 소유권 + 평점 정리.
- * ⚠️ register() 시그니처와 마운트 경로('/api/games')는 유지할 것.
+ * games 모듈 self-register (CONVENTIONS §3).
+ * register() 시그니처와 마운트 경로('/api/games')는 유지 — app.ts 는 이 계약에만 의존한다.
  */
 import type { Express } from 'express';
-import { gamesRouter } from '../../routes/games';
+import { GamesController } from './games.controller';
+import { GamesService } from './games.service';
+import { GamesRepository } from './games.repository';
 
 export function register(app: Express): void {
-  app.use('/api/games', gamesRouter);
+  const controller = new GamesController(new GamesService(new GamesRepository()));
+  app.use('/api/games', controller.router);
 }
