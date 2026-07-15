@@ -86,3 +86,11 @@ CONVENTIONS.md / HARDENING_SPEC.md
 - 작은 단위로 자주 커밋. 커밋 메시지: `lane<N>: <무엇>`.
 - PR/브랜치는 오케스트레이터가 의존성 순서(shared→auth→games·upload·categories→worker→web)로 머지.
 - 충돌은 오케스트레이터가 해소. 세션이 임의로 main 리베이스/머지 금지.
+
+## 9. 시크릿 위생 (public 레포)
+
+이 레포는 **공개**다. 아래를 **절대 커밋하지 않는다**:
+- 실제 크레덴셜/키 조각(COS SecretId/Key, JWT_SECRET, DB 비밀번호 등) — 문서/주석/폴백값 포함.
+- **알려진 기본 로그인**(고정 비번, 그 해시, 화면 힌트). admin 은 시드하지 말고 `create-admin`(env)로 배포 후 생성.
+- 실제 버킷/인프라 식별자는 하드코딩 금지 → 전부 env(`NEXT_PUBLIC_*`·`config`). 예시는 `<버킷명>`·`you@example.com` 같은 플레이스홀더로.
+- `.env*`는 `.gitignore` 상시 확인. 시크릿이 실수로 올라가면 **로테이션**이 진짜 해결책(파일 삭제만으론 히스토리에 남음).

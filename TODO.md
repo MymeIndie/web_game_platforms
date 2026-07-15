@@ -5,8 +5,8 @@
 ### 1. COS SecretId 오타 수정
 파일: `.env.development` 27번 줄
 ```
-현재: COS_SECRET_ID=IKIDSDl4kDj17...
-수정: COS_SECRET_ID=AKIDSDl4kDj17...  ← I → A
+현재: COS_SECRET_ID=IKID...   ← 오타(I로 시작)
+수정: COS_SECRET_ID=AKID...   ← 정상은 A로 시작 (실제 값은 텐센트 콘솔에서, 레포에 커밋 금지)
 ```
 > 텐센트 콘솔에서 정확한 값 복사 필수
 
@@ -16,7 +16,7 @@
 파일: `apps/web/.env.local` (없으면 생성)
 ```env
 NEXT_PUBLIC_API_URL=http://localhost:3001
-NEXT_PUBLIC_CDN_URL=https://wgp-gonggam-dev-1393441266.cos.ap-seoul.myqcloud.com
+NEXT_PUBLIC_CDN_URL=https://<버킷명>.cos.ap-seoul.myqcloud.com
 NEXT_PUBLIC_SITE_URL=http://localhost:3002
 ```
 > 이 파일 없으면 로그인 시 "서버에 연결할 수 없습니다" 에러 발생
@@ -67,7 +67,7 @@ DB_PASSWORD=안전한_비밀번호       ← 변경
 
 ### 6. Prod COS 버킷 생성
 텐센트 콘솔 > COS > 버킷 만들기
-- 이름: `wgp-gonggam-prod-1393441266`
+- 이름: `wgp-gonggam-prod-<appid>` (실제 AppId 는 콘솔 값)
 - 리전: 서울 (ap-seoul)
 - 접근 권한: 비공개 읽기/쓰기
 - CORS 설정: Prod 도메인으로 동일하게

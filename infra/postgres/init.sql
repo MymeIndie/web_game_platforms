@@ -110,12 +110,9 @@ INSERT INTO categories (slug, name, name_ko, icon, sort_order) VALUES
   ('multiplayer','Multiplayer','멀티플레이','users',     12)
 ON CONFLICT (slug) DO NOTHING;
 
--- Seed: Default admin user (password: Admin1234!)
-INSERT INTO users (username, email, password_hash, role) VALUES
-  ('admin', 'admin@wgp-gonggam.com',
-   '$2a$12$ChEUaGE5aQIhCKQIi2h87eHhZka1W/gdGF.ZjeL8w/d5ipTQDwp0W',
-   'admin')
-ON CONFLICT (email) DO UPDATE SET password_hash = EXCLUDED.password_hash;
+-- 기본 admin 은 시드하지 않는다 (공개 레포 + 알려진 비번 배포 금지).
+-- 배포 후 1회: ADMIN_EMAIL·ADMIN_PASSWORD env 로
+--   corepack pnpm --filter @wgp/api create-admin   (prod: node dist/scripts/create-admin.js)
 
 
 -- ============================================================
@@ -210,8 +207,6 @@ INSERT INTO categories (slug, name, name_ko, icon, sort_order) VALUES
   ('multiplayer','Multiplayer','멀티플레이','users',     12)
 ON CONFLICT (slug) DO NOTHING;
 
-INSERT INTO users (username, email, password_hash, role) VALUES
-  ('admin', 'admin@wgp-gonggam.com',
-   '$2a$12$ChEUaGE5aQIhCKQIi2h87eHhZka1W/gdGF.ZjeL8w/d5ipTQDwp0W',
-   'admin')
-ON CONFLICT (email) DO UPDATE SET password_hash = EXCLUDED.password_hash;
+-- 기본 admin 은 시드하지 않는다 (공개 레포 + 알려진 비번 배포 금지).
+-- 배포 후 1회: ADMIN_EMAIL·ADMIN_PASSWORD env 로
+--   corepack pnpm --filter @wgp/api create-admin   (prod: node dist/scripts/create-admin.js)

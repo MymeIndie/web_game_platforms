@@ -79,7 +79,7 @@ export default function ConsoleLoginPage() {
                 required
                 autoFocus
                 className="input"
-                placeholder="admin@wgp-gonggam.com"
+                placeholder="you@example.com"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 disabled={loading}
@@ -135,21 +135,6 @@ export default function ConsoleLoginPage() {
               ) : "로그인"}
             </button>
           </form>
-
-          {/* Default credentials hint */}
-          <div style={{
-            marginTop: "1.25rem",
-            padding: "0.75rem",
-            background: "var(--bg-tertiary)",
-            borderRadius: 8,
-            fontSize: "0.75rem",
-            color: "var(--text-muted)",
-            lineHeight: 1.6,
-          }}>
-            <strong style={{ color: "var(--text-secondary)" }}>기본 관리자 계정</strong><br />
-            이메일: admin@wgp-gonggam.com<br />
-            비밀번호: Admin1234!
-          </div>
         </div>
 
         {/* Back link */}

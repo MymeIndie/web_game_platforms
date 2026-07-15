@@ -2,9 +2,13 @@ import { NextRequest, NextResponse } from 'next/server';
 import path from 'path';
 import { getContentType } from '@/lib/contentType';
 
-// NEXT_PUBLIC_CDN_URL은 서버/클라이언트 모두 사용 가능
-const CDN_URL = process.env.NEXT_PUBLIC_CDN_URL ||
-  `https://${process.env.NEXT_PUBLIC_COS_BUCKET || 'wgp-gonggam-dev-1393441266'}.cos.ap-seoul.myqcloud.com`;
+// CDN/스토리지 공개 베이스 — 전부 env 주도(하드코딩 버킷 금지).
+// NEXT_PUBLIC_CDN_URL 우선, 없으면 버킷+리전 env 로 조립. 둘 다 없으면 빈 값(요청 실패 → 404/502).
+const CDN_URL =
+  process.env.NEXT_PUBLIC_CDN_URL ||
+  (process.env.NEXT_PUBLIC_COS_BUCKET
+    ? `https://${process.env.NEXT_PUBLIC_COS_BUCKET}.cos.${process.env.NEXT_PUBLIC_COS_REGION || 'ap-seoul'}.myqcloud.com`
+    : '');
 
 export async function GET(
   req: NextRequest,

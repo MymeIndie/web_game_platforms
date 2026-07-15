@@ -411,13 +411,15 @@ pnpm dev:web
 
 ---
 
-## 기본 계정
+## 관리자 계정 (배포 후 생성)
 
-> ⚠️ 반드시 운영 배포 전에 비밀번호를 변경하세요.
+> 알려진 기본 비밀번호를 배포하지 않는다. admin 은 시드하지 않고, 배포 후 env 로 1회 생성한다.
 
-| 이메일 | 비밀번호 | 역할 |
-|--------|----------|------|
-| `admin@wgp-gonggam.com` | `Admin1234!` | admin |
+```bash
+ADMIN_EMAIL=you@example.com ADMIN_PASSWORD='강력한_비번_8자+' \
+  corepack pnpm --filter @wgp/api create-admin
+# prod 컨테이너: ADMIN_EMAIL=... ADMIN_PASSWORD=... node dist/scripts/create-admin.js
+```
 
 콘솔 로그인: **http://localhost:3002/console/login**
 
