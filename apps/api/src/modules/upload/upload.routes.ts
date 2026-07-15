@@ -1,11 +1,13 @@
 /**
- * [Phase 0 스켈레톤 — 위임 스텁]
- * Lane 3(upload) 세션이 controller/service 로 교체 + 큐 enqueue(인프로세스 잡 제거).
- * ⚠️ register() 시그니처와 마운트 경로('/api/upload')는 유지할 것.
+ * Upload 모듈 self-register.
+ * ⚠️ register() 시그니처와 마운트 경로('/api/upload')는 동결 — 내부만 계층형으로 교체.
+ * Controller → Service → (Storage/Queue 포트 · Repository).
  */
 import type { Express } from 'express';
-import { uploadRouter } from '../../routes/upload';
+import { UploadController } from './upload.controller';
+import { UploadService } from './upload.service';
 
 export function register(app: Express): void {
-  app.use('/api/upload', uploadRouter);
+  const controller = new UploadController(new UploadService());
+  app.use('/api/upload', controller.router);
 }
