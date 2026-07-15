@@ -1,6 +1,6 @@
 # ============================================================
 # wgp-gonggam Docker Compose
-# Services: postgres, api-prod, api-dev, nginx
+# Services: postgres, migrate(-dev), api-prod, api-dev, worker-prod, worker-dev, nginx
 # ============================================================
 
 networks:
@@ -36,6 +36,49 @@ services:
       timeout: 5s
       retries: 5
 
+  # ── DB Migration (one-shot, runs BEFORE prod api/worker) ──
+  #    DATABASE_URL 은 .env.production 의 DB_* 로 컨테이너 런타임에 조립($$=쉘 이스케이프)
+  migrate:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+      target: production
+    container_name: wgp-migrate
+    env_file:
+      - .env.production
+    environment:
+      NODE_ENV: production
+    command: >
+      sh -c 'DATABASE_URL="postgres://$$DB_USER:$$DB_PASSWORD@$$DB_HOST:$$DB_PORT/$$DB_NAME"
+      node_modules/.bin/node-pg-migrate up -m migrations'
+    networks:
+      - wgp-network
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+
+  # ── DB Migration for dev DB (one-shot) ───────────────────
+  migrate-dev:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+      target: production
+    container_name: wgp-migrate-dev
+    env_file:
+      - .env.development
+    environment:
+      NODE_ENV: production
+    command: >
+      sh -c 'DATABASE_URL="postgres://$$DB_USER:$$DB_PASSWORD@$$DB_HOST:$$DB_PORT/$$DB_NAME"
+      node_modules/.bin/node-pg-migrate up -m migrations'
+    networks:
+      - wgp-network
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+
   # ── Production API (Port 3000) ───────────────────────────
   api-prod:
     build:
@@ -58,6 +101,8 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://localhost:3000/health"]
       interval: 30s
@@ -89,12 +134,62 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+      migrate-dev:
+        condition: service_completed_successfully
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://localhost:3001/health"]
       interval: 30s
       timeout: 10s
       retries: 3
       start_period: 30s
+
+  # ── Production Worker (압축해제 잡 소비) ──────────────────
+  worker-prod:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+      target: production
+    container_name: wgp-worker-prod
+    restart: unless-stopped
+    env_file:
+      - .env.production
+    environment:
+      NODE_ENV: production
+    command: ["node", "dist/jobs/workers/unzip.worker.js"]
+    volumes:
+      - api-tmp:/tmp/wgp-extract
+    networks:
+      - wgp-network
+    depends_on:
+      postgres:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+
+  # ── Development Worker (hot-reload) ──────────────────────
+  worker-dev:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+      target: development
+    container_name: wgp-worker-dev
+    restart: unless-stopped
+    env_file:
+      - .env.development
+    environment:
+      NODE_ENV: development
+    command: ["tsx", "watch", "apps/api/src/jobs/workers/unzip.worker.ts"]
+    volumes:
+      - ./apps/api/src:/app/apps/api/src:ro
+      - ./packages:/app/packages:ro
+      - api-tmp:/tmp/wgp-extract
+    networks:
+      - wgp-network
+    depends_on:
+      postgres:
+        condition: service_healthy
+      migrate-dev:
+        condition: service_completed_successfully
 
   # ── Nginx Reverse Proxy ──────────────────────────────────
   nginx:

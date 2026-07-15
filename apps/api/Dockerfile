@@ -35,6 +35,8 @@ COPY --from=builder /app/apps/api/dist ./dist
 COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/apps/api/node_modules ./apps/api/node_modules
 COPY --from=builder /app/apps/api/package.json ./
+# 마이그레이션 파일(migrate 서비스 + 부팅 전 스키마 적용용)
+COPY --from=builder /app/apps/api/migrations ./migrations
 RUN mkdir -p /tmp/wgp-extract
 EXPOSE 3000
 CMD ["node", "dist/index.js"]
